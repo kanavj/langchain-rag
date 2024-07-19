@@ -1,4 +1,4 @@
-documents/*
+documents/*.*
 .env
 .DS_Store
 # testing.ipynb
