@@ -1,6 +1,10 @@
 # %%
 import os
 import dotenv
+import logging
+
+logger = logging.getLogger(name="chatbot.log")
+logger.setLevel(logging.DEBUG)
 
 dotenv.load_dotenv()
 groq_key = os.getenv("GROQ_API_KEY")
@@ -167,6 +171,8 @@ def chat(message, history):
         updateVectorstore(vectorstore,[_["path"] for _ in message["files"]])    
     for human, ai in history:
         if ai is not None and human is not None:
+            logging.debug("User: "+human)
+            logging.debug("AI: "+ai)
             chat_history.extend([HumanMessage(content=human), AIMessage(content=ai)])
     resp = rag_chain_chat.invoke({"input": message["text"], "chat_history": chat_history})
     return resp["answer"]
