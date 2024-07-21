@@ -1,4 +1,5 @@
 documents/*.*
+docs2/
 .env
 .DS_Store
 # testing.ipynb
