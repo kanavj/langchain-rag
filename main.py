@@ -166,7 +166,7 @@ def chat(message, history):
     if "files" in message and len(message["files"]) > 0:
         updateVectorstore(vectorstore,[_["path"] for _ in message["files"]])    
     for human, ai in history:
-        if ai is not None:
+        if ai is not None and human is not None:
             chat_history.extend([HumanMessage(content=human), AIMessage(content=ai)])
     resp = rag_chain_chat.invoke({"input": message["text"], "chat_history": chat_history})
     return resp["answer"]
