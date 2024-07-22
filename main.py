@@ -1,14 +1,15 @@
 # %%
 import os
 import dotenv
-import logging
-
-logger = logging.getLogger(name="chatbot.log")
-logger.setLevel(logging.DEBUG)
 
 dotenv.load_dotenv()
 groq_key = os.getenv("GROQ_API_KEY")
-# open_api_key = os.getenv("OPENAI_API_KEY")
+open_api_key = os.getenv("OPENAI_API_KEY")
+
+import logging
+
+logger = logging.getLogger("chatbot.log")
+logger.setLevel(logging.DEBUG)
 
 # %% [markdown]
 # # Intialize vector database
@@ -32,8 +33,22 @@ llm = langchain_groq.ChatGroq(model="llama3-8b-8192")  # type: ignore
 doc_path = "./documents/"
 
 # %%
-embedding_function = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-vectorstore = Chroma(embedding_function=embedding_function)
+from langchain_huggingface import HuggingFaceEmbeddings
+import torch
+
+if torch.cuda.is_available():
+    model_kwargs = {"device": "cuda"}
+else:
+    model_kwargs = {"device": "cpu"}
+
+model_name = "BAAI/bge-large-en"
+encode_kwargs = {"normalize_embeddings": True}
+hf = Hugging(
+    model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
+)
+
+# %%
+vectorstore = Chroma(embedding_function=hf)
 def updateVectorstore(vectstr:Chroma,files:list[str]):
     docs = []
     for doc in [_ for _ in files if str(_).endswith(".pdf")]:
@@ -73,22 +88,21 @@ def format_docs(docs):
 # ## Simple response chain
 
 # %%
-
-# rag_chain = (
-#     {"context": retriever | format_docs, "question": RunnablePassthrough()}
-#     | prompt
-#     | llm
-#     | StrOutputParser()
-# )
-# rag_chain_docs = (
-#     RunnablePassthrough.assign(context=(lambda x: format_docs(x["context"])))
-#     | prompt
-#     | llm
-#     | StrOutputParser()
-# )
-# rag_chain_source = RunnableParallel(
-#     {"context": retriever, "question": RunnablePassthrough()}
-# ).assign(answer=rag_chain_docs)
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+rag_chain_docs = (
+    RunnablePassthrough.assign(context=(lambda x: format_docs(x["context"])))
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+rag_chain_source = RunnableParallel(
+    {"context": retriever, "question": RunnablePassthrough()}
+).assign(answer=rag_chain_docs)
 
 # %% [markdown]
 # ## Response chain with history
@@ -171,10 +185,8 @@ def chat(message, history):
         updateVectorstore(vectorstore,[_["path"] for _ in message["files"]])    
     for human, ai in history:
         if ai is not None and human is not None:
-            logging.debug("User: "+human)
-            logging.debug("AI: "+ai)
             chat_history.extend([HumanMessage(content=human), AIMessage(content=ai)])
     resp = rag_chain_chat.invoke({"input": message["text"], "chat_history": chat_history})
     return resp["answer"]
 
-gr.ChatInterface(chat,multimodal=True).launch(inline=False)
+gr.ChatInterface(chat, multimodal=True).launch(server_port=5000, inline=False)
